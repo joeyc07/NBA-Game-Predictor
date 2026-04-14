@@ -496,10 +496,12 @@ def main():
     games_df = add_efg_features(games_df)
 
     # TODO: Add net rating differential features here once add_net_rating_features() is implemented
-    # games_df = add_net_rating_features(games_df)
+    print("Adding net rating features...")
+    games_df = add_net_rating_features(games_df)
 
     # TODO: Add turnover rate differential features here once add_turnover_rate_features() is implemented
-    # games_df = add_turnover_rate_features(games_df)
+    print("Adding turnover rate features...")
+    games_df = add_turnover_rate_features(games_df)
 
     print("Validating processed dataset...")
     validate_games_dataset(games_df)
