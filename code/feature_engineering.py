@@ -371,15 +371,51 @@ def add_efg_features(games_df):
 
 # TODO: Add net rating differential features here
 # Possible future function:
-# def add_net_rating_features(games_df):
+def add_net_rating_features(games_df):
+    if games_df.empty:
+        raise ValueError("Processed dataset is empty")
+    
+    games_df = games_df.copy()
+    
+    required_cols = {
+        "HOME_ORtg": "home_off_rating", # home offensive rating
+        "HOME_DRtg": "home_def_rating", # home defensive rating
+        "AWAY_ORtg": "away_off_rating", # away offensive rating
+        "AWAY_DRtg": "away_def_rating" # away defensive rating
+    }
+
+    if not all(col in games_df.columns for col in required_cols.keys()):
+        raise ValueError(f"Missing required net rating columns: { [col for col in required_cols.keys() if col not in games_df.columns] }")
+    
+    games_df["home_net_rating"] = games_df["HOME_ORtg"] - games_df["HOME_DRtg"]
+    games_df["away_net_rating"] = games_df["AWAY_ORtg"] - games_df["AWAY_DRtg"]
+    games_df["net_rating_diff"] = games_df["home_net_rating"] - games_df["away_net_rating"]
+
+    return games_df
 #     ...
 #     return games_df
 
 # TODO: Add turnover rate differential features here
 # Possible future function:
-# def add_turnover_rate_features(games_df):
-#     ...
-#     return games_df
+def add_turnover_rate_features(games_df):
+    if games_df.empty:
+        raise ValueError("Processed dataset is empty")
+    
+    games_df = games_df.copy()
+    
+    required_cols = [
+        "HOME_TOV",
+        "AWAY_TOV"
+    ]
+
+    if not all(col in games_df.columns for col in required_cols):
+        raise ValueError(f"Missing required turnover rate columns: { [col for col in required_cols if col not in games_df.columns] }")
+
+    games_df['home_turnover_rate'] = games_df['HOME_TOV']
+    games_df['away_turnover_rate'] = games_df['AWAY_TOV']
+    games_df['turnover_rate_diff'] = games_df['home_turnover_rate'] - games_df['away_turnover_rate']
+
+    return games_df
 
 
 def validate_games_dataset(games_df):
