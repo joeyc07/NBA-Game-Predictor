@@ -80,7 +80,7 @@ def build_game_level_dataset(team_games_df):
         "WL": "AWAY_WL"
     }
 
-    stats_to_keep = ["FGM", "FGA", "FG3M", "FG3A", "FTM", "FTA", "REB", "AST", "TOV", "PLUS_MINUS"]
+    stats_to_keep = ["FGM", "FGA", "FG3M", "FG3A", "OREB", "DREB", "FTM", "FTA", "REB", "AST", "TOV", "PLUS_MINUS"]
     for col in stats_to_keep:
         if col in df.columns:
             home_rename[col] = f"HOME_{col}"
@@ -369,54 +369,113 @@ def add_efg_features(games_df):
 
     return games_df
 
-# TODO: Add net rating differential features here
-# Possible future function:
-def add_net_rating_features(games_df):
-    if games_df.empty:
-        raise ValueError("Processed dataset is empty")
-    
+def add_net_rating_and_turnover_features(games_df):
     games_df = games_df.copy()
-    
-    required_cols = {
-        "HOME_ORtg": "home_off_rating", # home offensive rating
-        "HOME_DRtg": "home_def_rating", # home defensive rating
-        "AWAY_ORtg": "away_off_rating", # away offensive rating
-        "AWAY_DRtg": "away_def_rating" # away defensive rating
-    }
+    games_df = games_df.sort_values(["GAME_DATE", "GAME_ID"]).reset_index(drop=True)
 
-    if not all(col in games_df.columns for col in required_cols.keys()):
-        raise ValueError(f"Missing required net rating columns: { [col for col in required_cols.keys() if col not in games_df.columns] }")
-    
-    games_df["home_net_rating"] = games_df["HOME_ORtg"] - games_df["HOME_DRtg"]
-    games_df["away_net_rating"] = games_df["AWAY_ORtg"] - games_df["AWAY_DRtg"]
-    games_df["net_rating_diff"] = games_df["home_net_rating"] - games_df["away_net_rating"]
-
-    return games_df
-#     ...
-#     return games_df
-
-# TODO: Add turnover rate differential features here
-# Possible future function:
-def add_turnover_rate_features(games_df):
-    if games_df.empty:
-        raise ValueError("Processed dataset is empty")
-    
-    games_df = games_df.copy()
-    
     required_cols = [
-        "HOME_TOV",
-        "AWAY_TOV"
+        "HOME_PTS", "AWAY_PTS",
+        "HOME_FGA", "AWAY_FGA",
+        "HOME_FTA", "AWAY_FTA",
+        "HOME_OREB", "AWAY_OREB",
+        "HOME_TOV", "AWAY_TOV"
     ]
 
-    if not all(col in games_df.columns for col in required_cols):
-        raise ValueError(f"Missing required turnover rate columns: { [col for col in required_cols if col not in games_df.columns] }")
+    missing = [col for col in required_cols if col not in games_df.columns]
+    if missing:
+        raise ValueError(f"Missing required columns for net rating / turnover rate: {missing}")
 
-    games_df['home_turnover_rate'] = games_df['HOME_TOV']
-    games_df['away_turnover_rate'] = games_df['AWAY_TOV']
-    games_df['turnover_rate_diff'] = games_df['home_turnover_rate'] - games_df['away_turnover_rate']
+    team_net_rating_history = defaultdict(lambda: deque(maxlen=10))
+    team_turnover_rate_history = defaultdict(lambda: deque(maxlen=10))
+
+    home_net_ratings = []
+    away_net_ratings = []
+    net_rating_diffs = []
+
+    home_turnover_rates = []
+    away_turnover_rates = []
+    turnover_rate_diffs = []
+
+    for _, row in games_df.iterrows():
+        home_team = row["HOME_TEAM_NAME"]
+        away_team = row["AWAY_TEAM_NAME"]
+
+        home_net_hist = list(team_net_rating_history[home_team])
+        away_net_hist = list(team_net_rating_history[away_team])
+
+        home_tov_hist = list(team_turnover_rate_history[home_team])
+        away_tov_hist = list(team_turnover_rate_history[away_team])
+
+        if home_net_hist:
+            home_net_rating = sum(home_net_hist) / len(home_net_hist)
+        else:
+            home_net_rating = 0.0
+
+        if away_net_hist:
+            away_net_rating = sum(away_net_hist) / len(away_net_hist)
+        else:
+            away_net_rating = 0.0
+
+        if home_tov_hist:
+            home_turnover_rate = sum(home_tov_hist) / len(home_tov_hist)
+        else:
+            home_turnover_rate = 13.0
+
+        if away_tov_hist:
+            away_turnover_rate = sum(away_tov_hist) / len(away_tov_hist)
+        else:
+            away_turnover_rate = 13.0
+
+        home_net_ratings.append(home_net_rating)
+        away_net_ratings.append(away_net_rating)
+        net_rating_diffs.append(home_net_rating - away_net_rating)
+
+        home_turnover_rates.append(home_turnover_rate)
+        away_turnover_rates.append(away_turnover_rate)
+        turnover_rate_diffs.append(home_turnover_rate - away_turnover_rate)
+
+        home_possessions = (
+            row["HOME_FGA"] - row["HOME_OREB"] +
+            row["HOME_TOV"] + 0.44 * row["HOME_FTA"]
+        )
+        away_possessions = (
+            row["AWAY_FGA"] - row["AWAY_OREB"] +
+            row["AWAY_TOV"] + 0.44 * row["AWAY_FTA"]
+        )
+
+        if home_possessions <= 0:
+            home_possessions = 1.0
+        if away_possessions <= 0:
+            away_possessions = 1.0
+
+        current_home_net_rating = (
+            100 * row["HOME_PTS"] / home_possessions -
+            100 * row["AWAY_PTS"] / away_possessions
+        )
+
+        current_away_net_rating = (
+            100 * row["AWAY_PTS"] / away_possessions -
+            100 * row["HOME_PTS"] / home_possessions
+        )
+
+        current_home_turnover_rate = 100 * row["HOME_TOV"] / home_possessions
+        current_away_turnover_rate = 100 * row["AWAY_TOV"] / away_possessions
+
+        team_net_rating_history[home_team].append(current_home_net_rating)
+        team_net_rating_history[away_team].append(current_away_net_rating)
+
+        team_turnover_rate_history[home_team].append(current_home_turnover_rate)
+        team_turnover_rate_history[away_team].append(current_away_turnover_rate)
+
+    games_df["home_net_rating"] = home_net_ratings
+    games_df["away_net_rating"] = away_net_ratings
+    games_df["net_rating_diff"] = net_rating_diffs
+
+    games_df["home_turnover_rate"] = home_turnover_rates
+    games_df["away_turnover_rate"] = away_turnover_rates
+    games_df["turnover_rate_diff"] = turnover_rate_diffs
 
     return games_df
-
 
 def validate_games_dataset(games_df):
     if games_df.empty:
@@ -427,15 +486,12 @@ def validate_games_dataset(games_df):
         raise ValueError(f"Duplicate GAME_ID values found: {duplicate_ids[:10]}")
 
     required_columns = [
-
-        # TODO: Add these once implemented:
-        # "home_net_rating",
-        # "away_net_rating",
-        # "net_rating_diff",
-        # "home_turnover_rate",
-        # "away_turnover_rate",
-        # "turnover_rate_diff",
-
+        "home_net_rating",
+        "away_net_rating",
+        "net_rating_diff",
+        "home_turnover_rate",
+        "away_turnover_rate",
+        "turnover_rate_diff",
         "GAME_ID",
         "GAME_DATE",
         "SEASON",
@@ -495,13 +551,8 @@ def main():
     print("Adding eFG features if available...")
     games_df = add_efg_features(games_df)
 
-    # TODO: Add net rating differential features here once add_net_rating_features() is implemented
-    print("Adding net rating features...")
-    games_df = add_net_rating_features(games_df)
-
-    # TODO: Add turnover rate differential features here once add_turnover_rate_features() is implemented
-    print("Adding turnover rate features...")
-    games_df = add_turnover_rate_features(games_df)
+    print("Adding net rating and turnover rate features...")
+    games_df = add_net_rating_and_turnover_features(games_df)
 
     print("Validating processed dataset...")
     validate_games_dataset(games_df)

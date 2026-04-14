@@ -31,15 +31,13 @@ BASE_FEATURE_COLUMNS = [
     "rest_diff",
     "home_off_vs_away_def",
     "away_off_vs_home_def",
-    "off_def_matchup_diff"
-
-    # TODO: Add these once they are created in feature_engineering.py
-    # "home_net_rating",
-    # "away_net_rating",
-    # "net_rating_diff",
-    # "home_turnover_rate",
-    # "away_turnover_rate",
-    # "turnover_rate_diff",
+    "off_def_matchup_diff",
+    "home_net_rating",
+    "away_net_rating",
+    "net_rating_diff",
+    "home_turnover_rate",
+    "away_turnover_rate",
+    "turnover_rate_diff",
 ]
 
 OPTIONAL_FEATURE_COLUMNS = [
@@ -181,39 +179,61 @@ class NBAPredictorApp(tk.Tk):
         if latest_away_row is None:
             raise ValueError(f"No away-team data found for {away_team}.")
 
+        home_last10_win_pct = latest_home_row["home_last10_win_pct"]
+        away_last10_win_pct = latest_away_row["away_last10_win_pct"]
+
+        home_last10_home_win_pct = latest_home_row["home_last10_home_win_pct"]
+        away_last10_away_win_pct = latest_away_row["away_last10_away_win_pct"]
+
+        home_rest_days = latest_home_row["home_rest_days"]
+        away_rest_days = latest_away_row["away_rest_days"]
+
+        home_off_vs_away_def = (
+            latest_home_row["home_last10_pts_scored"] - latest_away_row["away_last10_pts_allowed"]
+        )
+        away_off_vs_home_def = (
+            latest_away_row["away_last10_pts_scored"] - latest_home_row["home_last10_pts_allowed"]
+        )
+
+        home_net_rating = latest_home_row["home_net_rating"]
+        away_net_rating = latest_away_row["away_net_rating"]
+
+        home_turnover_rate = latest_home_row["home_turnover_rate"]
+        away_turnover_rate = latest_away_row["away_turnover_rate"]
+
         feature_dict = {
-            "home_last10_win_pct": latest_home_row["home_last10_win_pct"],
-            "away_last10_win_pct": latest_away_row["away_last10_win_pct"],
-            "last10_win_pct_diff": latest_home_row["home_last10_win_pct"] - latest_away_row["away_last10_win_pct"],
+            "home_last10_win_pct": home_last10_win_pct,
+            "away_last10_win_pct": away_last10_win_pct,
+            "last10_win_pct_diff": home_last10_win_pct - away_last10_win_pct,
 
-            "home_last10_home_win_pct": latest_home_row["home_last10_home_win_pct"],
-            "away_last10_away_win_pct": latest_away_row["away_last10_away_win_pct"],
-            "home_away_form_diff": latest_home_row["home_last10_home_win_pct"] - latest_away_row["away_last10_away_win_pct"],
+            "home_last10_home_win_pct": home_last10_home_win_pct,
+            "away_last10_away_win_pct": away_last10_away_win_pct,
+            "home_away_form_diff": home_last10_home_win_pct - away_last10_away_win_pct,
 
-            "home_rest_days": latest_home_row["home_rest_days"],
-            "away_rest_days": latest_away_row["away_rest_days"],
-            "rest_diff": latest_home_row["home_rest_days"] - latest_away_row["away_rest_days"],
+            "home_rest_days": home_rest_days,
+            "away_rest_days": away_rest_days,
+            "rest_diff": home_rest_days - away_rest_days,
 
-            "home_off_vs_away_def": latest_home_row["home_last10_pts_scored"] - latest_away_row["away_last10_pts_allowed"],
-            "away_off_vs_home_def": latest_away_row["away_last10_pts_scored"] - latest_home_row["home_last10_pts_allowed"],
-            "off_def_matchup_diff": (
-                (latest_home_row["home_last10_pts_scored"] - latest_away_row["away_last10_pts_allowed"]) -
-                (latest_away_row["away_last10_pts_scored"] - latest_home_row["home_last10_pts_allowed"])
-            )
+            "home_off_vs_away_def": home_off_vs_away_def,
+            "away_off_vs_home_def": away_off_vs_home_def,
+            "off_def_matchup_diff": home_off_vs_away_def - away_off_vs_home_def,
 
-            # TODO: Add these once they are created in feature_engineering.py
-            # "home_net_rating": latest_home_row["home_net_rating"],
-            # "away_net_rating": latest_away_row["away_net_rating"],
-            # "net_rating_diff": latest_home_row["home_net_rating"] - latest_away_row["away_net_rating"],
-            # "home_turnover_rate": latest_home_row["home_turnover_rate"],
-            # "away_turnover_rate": latest_away_row["away_turnover_rate"],
-            # "turnover_rate_diff": latest_home_row["home_turnover_rate"] - latest_away_row["away_turnover_rate"],
+            "home_net_rating": home_net_rating,
+            "away_net_rating": away_net_rating,
+            "net_rating_diff": home_net_rating - away_net_rating,
+
+            "home_turnover_rate": home_turnover_rate,
+            "away_turnover_rate": away_turnover_rate,
+            "turnover_rate_diff": home_turnover_rate - away_turnover_rate,
         }
 
         if all(col in self.df.columns for col in OPTIONAL_FEATURE_COLUMNS):
-            feature_dict["home_last10_efg"] = latest_home_row["home_last10_efg"]
-            feature_dict["away_last10_efg"] = latest_away_row["away_last10_efg"]
-            feature_dict["efg_diff"] = latest_home_row["home_last10_efg"] - latest_away_row["away_last10_efg"]
+            home_last10_efg = latest_home_row["home_last10_efg"]
+            away_last10_efg = latest_away_row["away_last10_efg"]
+
+            feature_dict["home_last10_efg"] = home_last10_efg
+            feature_dict["away_last10_efg"] = away_last10_efg
+            feature_dict["efg_diff"] = home_last10_efg - away_last10_efg
 
         return pd.DataFrame([feature_dict])[self.feature_columns]
 
