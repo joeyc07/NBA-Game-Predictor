@@ -19,6 +19,7 @@ def ensure_directories():
 def load_games():
     df = pd.read_csv("../data/raw/nba_team_games_combined.csv")
     df = df.dropna(subset=["GAME_ID", "TEAM_ID", "SEASON"])
+    df["GAME_ID"] = df["GAME_ID"].astype(str).str.zfill(10)
     return df[["GAME_ID", "TEAM_ID", "SEASON"]].drop_duplicates()
 
 def get_top_players_by_season():
@@ -42,6 +43,7 @@ def get_top_players_by_season():
                 team_players
                 .sort_values(by="PTS", ascending=False)
                 .head(2)["PLAYER_ID"]
+                .astype(str)
                 .tolist()
             )
 
@@ -83,11 +85,14 @@ def build_star_availability():
 
         boxscore = game_cache[game_id]
 
-        if boxscore.empty or not top_players:
-            available = 0
+        if boxscore.empty:
+            available = 3
+        elif not top_players:
+            available = 4
         else:
-            players_in_game = set(boxscore["PLAYER_ID"])
+            players_in_game = set(boxscore["personId"].astype(str))
             available = sum(p in players_in_game for p in top_players)
+
 
         results.append({
             "GAME_ID": game_id,
@@ -97,6 +102,7 @@ def build_star_availability():
 
         if idx % 200 == 0:
             print(f"Processed {idx} games...")
+            break
 
     return pd.DataFrame(results)
 
