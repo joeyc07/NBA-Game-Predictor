@@ -27,6 +27,7 @@ def clean_team_name(name):
     name = str(name).strip()
     replacements = {
         "Los Angeles Clippers": "Los Angeles Clippers",
+        "LA Clippers": "Los Angeles Clippers",
         "L.A. Clippers": "Los Angeles Clippers"
     }
     return replacements.get(name, name)
@@ -313,9 +314,10 @@ def add_matchup_features(games_df):
     games_df["away_off_vs_home_def"] = (
         games_df["away_last10_pts_scored"] - games_df["home_last10_pts_allowed"]
     )
-    games_df["off_def_matchup_diff"] = (
+    games_df["offensive_defensive_matchup_diff"] = (
         games_df["home_off_vs_away_def"] - games_df["away_off_vs_home_def"]
     )
+    games_df["off_def_matchup_diff"] = games_df["offensive_defensive_matchup_diff"]
 
     return games_df
 
@@ -365,7 +367,8 @@ def add_efg_features(games_df):
 
     games_df["home_last10_efg"] = home_last10_efg
     games_df["away_last10_efg"] = away_last10_efg
-    games_df["efg_diff"] = games_df["home_last10_efg"] - games_df["away_last10_efg"]
+    games_df["effective_fg_pct_diff"] = games_df["home_last10_efg"] - games_df["away_last10_efg"]
+    games_df["efg_diff"] = games_df["effective_fg_pct_diff"]
 
     return games_df
 
@@ -515,6 +518,7 @@ def validate_games_dataset(games_df):
         "away_last10_pts_allowed",
         "home_off_vs_away_def",
         "away_off_vs_home_def",
+        "offensive_defensive_matchup_diff",
         "off_def_matchup_diff"
     ]
 
@@ -587,10 +591,16 @@ def main():
         "rest_diff",
         "home_off_vs_away_def",
         "away_off_vs_home_def",
+        "offensive_defensive_matchup_diff",
         "off_def_matchup_diff"
     ]
-    if "efg_diff" in games_df.columns:
-        sample_cols.extend(["home_last10_efg", "away_last10_efg", "efg_diff"])
+    if "effective_fg_pct_diff" in games_df.columns:
+        sample_cols.extend([
+            "home_last10_efg",
+            "away_last10_efg",
+            "effective_fg_pct_diff",
+            "efg_diff",
+        ])
 
     print("\nSample feature rows:")
     print(games_df[sample_cols].head(10))

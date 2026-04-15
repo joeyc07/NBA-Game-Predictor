@@ -1,9 +1,26 @@
 import os
+from datetime import datetime
 import pandas as pd
 import tkinter as tk
 from tkinter import ttk, messagebox
 from sklearn.linear_model import LogisticRegression
 from sklearn.metrics import accuracy_score, classification_report, confusion_matrix
+
+try:
+    from nba_api.stats.endpoints import leaguegamefinder
+except ImportError:
+    leaguegamefinder = None
+
+from feature_engineering import (
+    add_efg_features,
+    add_last10_features,
+    add_matchup_features,
+    add_net_rating_and_turnover_features,
+    add_rest_features,
+    add_scoring_features,
+    build_game_level_dataset,
+    clean_team_name,
+)
 
 
 NBA_TEAMS = [
@@ -31,7 +48,6 @@ BASE_FEATURE_COLUMNS = [
     "rest_diff",
     "home_off_vs_away_def",
     "away_off_vs_home_def",
-    "off_def_matchup_diff",
     "home_net_rating",
     "away_net_rating",
     "net_rating_diff",
@@ -40,10 +56,19 @@ BASE_FEATURE_COLUMNS = [
     "turnover_rate_diff",
 ]
 
+MATCHUP_FEATURE_ALIASES = [
+    "offensive_defensive_matchup_diff",
+    "off_def_matchup_diff",
+]
+
 OPTIONAL_FEATURE_COLUMNS = [
     "home_last10_efg",
     "away_last10_efg",
-    "efg_diff"
+]
+
+OPTIONAL_EFG_DIFF_ALIASES = [
+    "effective_fg_pct_diff",
+    "efg_diff",
 ]
 
 
@@ -64,15 +89,30 @@ class NBAPredictorApp(tk.Tk):
 
         self.df = pd.read_csv(DATA_FILE)
         self.df["GAME_DATE"] = pd.to_datetime(self.df["GAME_DATE"], errors="coerce")
+        self.live_feature_df = None
+        self.live_data_status = "Local processed dataset"
+        self.live_season = self.get_default_live_season()
         self.feature_columns = self.get_feature_columns()
         self.model = self.train_model()
         self.create_widgets()
 
     def get_feature_columns(self):
         feature_columns = BASE_FEATURE_COLUMNS.copy()
+
+        for col in MATCHUP_FEATURE_ALIASES:
+            if col in self.df.columns:
+                feature_columns.append(col)
+                break
+
         for col in OPTIONAL_FEATURE_COLUMNS:
             if col in self.df.columns:
                 feature_columns.append(col)
+
+        for col in OPTIONAL_EFG_DIFF_ALIASES:
+            if col in self.df.columns:
+                feature_columns.append(col)
+                break
+
         return feature_columns
 
     def train_model(self):
@@ -158,48 +198,171 @@ class NBAPredictorApp(tk.Tk):
         )
         self.result_label.pack(pady=20)
 
-    def get_latest_home_row(self, team_name):
-        rows = self.df[self.df["HOME_TEAM_NAME"] == team_name].sort_values("GAME_DATE")
+    def get_default_live_season(self):
+        today = datetime.now()
+        start_year = today.year if today.month >= 10 else today.year - 1
+        end_year = str((start_year + 1) % 100).zfill(2)
+        return f"{start_year}-{end_year}"
+
+    def prepare_live_team_games(self, raw_df):
+        df = raw_df.copy()
+        df["GAME_DATE"] = pd.to_datetime(df["GAME_DATE"], errors="coerce")
+        df["TEAM_NAME"] = df["TEAM_NAME"].apply(clean_team_name)
+        df["MATCHUP"] = df["MATCHUP"].astype(str).str.strip()
+        df["WL"] = df["WL"].astype(str).str.strip()
+
+        numeric_candidates = [
+            "PTS", "FGM", "FGA", "FG3M", "FG3A", "FTM", "FTA",
+            "OREB", "DREB", "REB", "AST", "STL", "BLK", "TOV", "PF", "PLUS_MINUS"
+        ]
+        for col in numeric_candidates:
+            if col in df.columns:
+                df[col] = pd.to_numeric(df[col], errors="coerce")
+
+        df = df[df["TEAM_NAME"].isin(NBA_TEAMS)].copy()
+        df = df.dropna(
+            subset=["GAME_ID", "GAME_DATE", "TEAM_ID", "TEAM_NAME", "MATCHUP", "WL", "PTS", "SEASON"]
+        )
+        return df.sort_values(["GAME_DATE", "GAME_ID", "TEAM_NAME"]).reset_index(drop=True)
+
+    def build_live_feature_dataset(self):
+        if leaguegamefinder is None:
+            raise RuntimeError("nba_api is not installed in this environment.")
+
+        season = self.live_season
+        raw_df = leaguegamefinder.LeagueGameFinder(
+            player_or_team_abbreviation="T",
+            season_nullable=season
+        ).get_data_frames()[0]
+
+        if raw_df.empty:
+            raise RuntimeError(f"NBA API returned no games for season {season}.")
+
+        if "SEASON" not in raw_df.columns:
+            raw_df["SEASON"] = season
+
+        team_games_df = self.prepare_live_team_games(raw_df)
+        games_df = build_game_level_dataset(team_games_df)
+        games_df = add_last10_features(games_df)
+        games_df = add_rest_features(games_df)
+        games_df = add_scoring_features(games_df)
+        games_df = add_matchup_features(games_df)
+        games_df = add_efg_features(games_df)
+        games_df = add_net_rating_and_turnover_features(games_df)
+        return games_df
+
+    def get_prediction_dataset(self):
+        if self.live_feature_df is not None:
+            return self.live_feature_df
+
+        try:
+            self.live_feature_df = self.build_live_feature_dataset()
+            self.live_data_status = f"NBA API live data ({self.live_season})"
+            return self.live_feature_df
+        except Exception as exc:
+            self.live_data_status = f"Local processed dataset fallback ({exc})"
+            return self.df
+
+    def get_latest_home_row(self, source_df, team_name):
+        rows = source_df[source_df["HOME_TEAM_NAME"] == team_name].sort_values(["GAME_DATE", "GAME_ID"])
         if rows.empty:
             return None
         return rows.iloc[-1]
 
-    def get_latest_away_row(self, team_name):
-        rows = self.df[self.df["AWAY_TEAM_NAME"] == team_name].sort_values("GAME_DATE")
+    def get_latest_away_row(self, source_df, team_name):
+        rows = source_df[source_df["AWAY_TEAM_NAME"] == team_name].sort_values(["GAME_DATE", "GAME_ID"])
         if rows.empty:
             return None
         return rows.iloc[-1]
+
+    def get_latest_team_row(self, source_df, team_name):
+        home_rows = source_df[source_df["HOME_TEAM_NAME"] == team_name].copy()
+        if not home_rows.empty:
+            home_rows["TEAM_ROLE"] = "home"
+
+        away_rows = source_df[source_df["AWAY_TEAM_NAME"] == team_name].copy()
+        if not away_rows.empty:
+            away_rows["TEAM_ROLE"] = "away"
+
+        team_rows = pd.concat([home_rows, away_rows], ignore_index=True)
+        if team_rows.empty:
+            return None
+
+        team_rows = team_rows.sort_values(["GAME_DATE", "GAME_ID"]).reset_index(drop=True)
+        return team_rows.iloc[-1]
+
+    def get_team_snapshot(self, latest_team_row, team_name):
+        if latest_team_row is None:
+            raise ValueError(f"No team data found for {team_name}.")
+
+        team_role = latest_team_row["TEAM_ROLE"]
+
+        if team_role == "home":
+            snapshot = {
+                "last10_win_pct": latest_team_row["home_last10_win_pct"],
+                "rest_days": latest_team_row["home_rest_days"],
+                "last10_pts_scored": latest_team_row["home_last10_pts_scored"],
+                "last10_pts_allowed": latest_team_row["home_last10_pts_allowed"],
+                "net_rating": latest_team_row["home_net_rating"],
+                "turnover_rate": latest_team_row["home_turnover_rate"],
+            }
+            if "home_last10_efg" in latest_team_row.index:
+                snapshot["last10_efg"] = latest_team_row["home_last10_efg"]
+        else:
+            snapshot = {
+                "last10_win_pct": latest_team_row["away_last10_win_pct"],
+                "rest_days": latest_team_row["away_rest_days"],
+                "last10_pts_scored": latest_team_row["away_last10_pts_scored"],
+                "last10_pts_allowed": latest_team_row["away_last10_pts_allowed"],
+                "net_rating": latest_team_row["away_net_rating"],
+                "turnover_rate": latest_team_row["away_turnover_rate"],
+            }
+            if "away_last10_efg" in latest_team_row.index:
+                snapshot["last10_efg"] = latest_team_row["away_last10_efg"]
+
+        return snapshot
 
     def build_prediction_input(self, home_team, away_team):
-        latest_home_row = self.get_latest_home_row(home_team)
-        latest_away_row = self.get_latest_away_row(away_team)
+        source_df = self.get_prediction_dataset()
 
-        if latest_home_row is None:
-            raise ValueError(f"No home-team data found for {home_team}.")
-        if latest_away_row is None:
-            raise ValueError(f"No away-team data found for {away_team}.")
+        latest_home_team_row = self.get_latest_team_row(source_df, home_team)
+        latest_away_team_row = self.get_latest_team_row(source_df, away_team)
+        latest_home_home_row = self.get_latest_home_row(source_df, home_team)
+        latest_away_away_row = self.get_latest_away_row(source_df, away_team)
 
-        home_last10_win_pct = latest_home_row["home_last10_win_pct"]
-        away_last10_win_pct = latest_away_row["away_last10_win_pct"]
+        if latest_home_team_row is None:
+            raise ValueError(f"No team data found for {home_team}.")
+        if latest_away_team_row is None:
+            raise ValueError(f"No team data found for {away_team}.")
+        if latest_home_home_row is None:
+            raise ValueError(f"No home-game data found for {home_team}.")
+        if latest_away_away_row is None:
+            raise ValueError(f"No away-game data found for {away_team}.")
 
-        home_last10_home_win_pct = latest_home_row["home_last10_home_win_pct"]
-        away_last10_away_win_pct = latest_away_row["away_last10_away_win_pct"]
+        home_snapshot = self.get_team_snapshot(latest_home_team_row, home_team)
+        away_snapshot = self.get_team_snapshot(latest_away_team_row, away_team)
 
-        home_rest_days = latest_home_row["home_rest_days"]
-        away_rest_days = latest_away_row["away_rest_days"]
+        home_last10_win_pct = home_snapshot["last10_win_pct"]
+        away_last10_win_pct = away_snapshot["last10_win_pct"]
+
+        home_last10_home_win_pct = latest_home_home_row["home_last10_home_win_pct"]
+        away_last10_away_win_pct = latest_away_away_row["away_last10_away_win_pct"]
+
+        home_rest_days = home_snapshot["rest_days"]
+        away_rest_days = away_snapshot["rest_days"]
 
         home_off_vs_away_def = (
-            latest_home_row["home_last10_pts_scored"] - latest_away_row["away_last10_pts_allowed"]
+            home_snapshot["last10_pts_scored"] - away_snapshot["last10_pts_allowed"]
         )
         away_off_vs_home_def = (
-            latest_away_row["away_last10_pts_scored"] - latest_home_row["home_last10_pts_allowed"]
+            away_snapshot["last10_pts_scored"] - home_snapshot["last10_pts_allowed"]
         )
 
-        home_net_rating = latest_home_row["home_net_rating"]
-        away_net_rating = latest_away_row["away_net_rating"]
+        home_net_rating = home_snapshot["net_rating"]
+        away_net_rating = away_snapshot["net_rating"]
 
-        home_turnover_rate = latest_home_row["home_turnover_rate"]
-        away_turnover_rate = latest_away_row["away_turnover_rate"]
+        home_turnover_rate = home_snapshot["turnover_rate"]
+        away_turnover_rate = away_snapshot["turnover_rate"]
 
         feature_dict = {
             "home_last10_win_pct": home_last10_win_pct,
@@ -216,6 +379,7 @@ class NBAPredictorApp(tk.Tk):
 
             "home_off_vs_away_def": home_off_vs_away_def,
             "away_off_vs_home_def": away_off_vs_home_def,
+            "offensive_defensive_matchup_diff": home_off_vs_away_def - away_off_vs_home_def,
             "off_def_matchup_diff": home_off_vs_away_def - away_off_vs_home_def,
 
             "home_net_rating": home_net_rating,
@@ -227,12 +391,13 @@ class NBAPredictorApp(tk.Tk):
             "turnover_rate_diff": home_turnover_rate - away_turnover_rate,
         }
 
-        if all(col in self.df.columns for col in OPTIONAL_FEATURE_COLUMNS):
-            home_last10_efg = latest_home_row["home_last10_efg"]
-            away_last10_efg = latest_away_row["away_last10_efg"]
+        if all(col in source_df.columns for col in OPTIONAL_FEATURE_COLUMNS):
+            home_last10_efg = home_snapshot["last10_efg"]
+            away_last10_efg = away_snapshot["last10_efg"]
 
             feature_dict["home_last10_efg"] = home_last10_efg
             feature_dict["away_last10_efg"] = away_last10_efg
+            feature_dict["effective_fg_pct_diff"] = home_last10_efg - away_last10_efg
             feature_dict["efg_diff"] = home_last10_efg - away_last10_efg
 
         return pd.DataFrame([feature_dict])[self.feature_columns]
@@ -269,7 +434,8 @@ class NBAPredictorApp(tk.Tk):
         result_text = (
             f"{winner_text}\n\n"
             f"{home_team} win probability: {home_prob:.2%}\n"
-            f"{away_team} win probability: {away_prob:.2%}"
+            f"{away_team} win probability: {away_prob:.2%}\n\n"
+            f"Data source: {self.live_data_status}"
         )
 
         self.result_label.config(text=result_text)
