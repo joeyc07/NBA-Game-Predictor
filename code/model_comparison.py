@@ -22,7 +22,6 @@ FEATURE_COLUMNS = [
     "rest_diff",
     "home_off_vs_away_def",
     "away_off_vs_home_def",
-    "off_def_matchup_diff",
     "home_net_rating",
     "away_net_rating",
     "net_rating_diff",
@@ -31,10 +30,19 @@ FEATURE_COLUMNS = [
     "turnover_rate_diff"
 ]
 
+MATCHUP_FEATURE_ALIASES = [
+    "offensive_defensive_matchup_diff",
+    "off_def_matchup_diff",
+]
+
 OPTIONAL_FEATURE_COLUMNS = [
     "home_last10_efg",
     "away_last10_efg",
-    "efg_diff"
+]
+
+OPTIONAL_EFG_DIFF_ALIASES = [
+    "effective_fg_pct_diff",
+    "efg_diff",
 ]
 
 
@@ -48,9 +56,20 @@ def load_data():
     df["GAME_DATE"] = pd.to_datetime(df["GAME_DATE"], errors="coerce")
 
     feature_columns = FEATURE_COLUMNS.copy()
+
+    for col in MATCHUP_FEATURE_ALIASES:
+        if col in df.columns:
+            feature_columns.append(col)
+            break
+
     for col in OPTIONAL_FEATURE_COLUMNS:
         if col in df.columns:
             feature_columns.append(col)
+
+    for col in OPTIONAL_EFG_DIFF_ALIASES:
+        if col in df.columns:
+            feature_columns.append(col)
+            break
 
     X = df[feature_columns]
     y = df["HOME_TEAM_WINS"]
