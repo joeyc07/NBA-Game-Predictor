@@ -293,3 +293,12 @@ def predict_game(payload: PredictRequest):
         "away_win_probability": away_prob,
         "data_source": "Bundled processed dataset",
     }
+
+@app.get("/style.css")
+def serve_css():
+    return FileResponse(PUBLIC_DIR / "style.css", media_type="text/css")
+
+
+@app.get("/app.js")
+def serve_js():
+    return FileResponse(PUBLIC_DIR / "app.js", media_type="application/javascript")
