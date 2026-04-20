@@ -5,6 +5,7 @@ import pandas as pd
 
 
 RAW_INPUT_FILE = "../data/raw/nba_team_games_combined.csv"
+RAW_PLAYER_INPUT_FILE = "../data/raw/nba_player_games_combined.csv"
 PROCESSED_OUTPUT_FILE = "../data/processed/games_with_features.csv"
 
 NBA_TEAMS = [
@@ -56,6 +57,17 @@ def load_raw_data():
     df = df[df["TEAM_NAME"].isin(NBA_TEAMS)].copy()
     df = df.dropna(subset=["GAME_ID", "GAME_DATE", "TEAM_ID", "TEAM_NAME", "MATCHUP", "WL", "PTS", "SEASON"])
     df = df.sort_values(["GAME_DATE", "GAME_ID", "TEAM_NAME"]).reset_index(drop=True)
+
+    return df
+
+def load_player_data():
+    if not os.path.exists(RAW_PLAYER_INPUT_FILE):
+        raise FileNotFoundError(
+            f"Could not find {RAW_PLAYER_INPUT_FILE}. Run nba_api_data_collection.py first."
+        )
+
+    df = pd.read_csv(RAW_PLAYER_INPUT_FILE)
+    df["STAR_AVAILABLE"] = pd.to_numeric(df["STAR_AVAILABLE"], errors="coerce")
 
     return df
 
@@ -480,6 +492,43 @@ def add_net_rating_and_turnover_features(games_df):
 
     return games_df
 
+def add_star_availability(games_df, player_df):
+    games_df = games_df.copy()
+
+    player_availability = player_df.pivot_table(
+        index=["GAME_ID", "TEAM_ID"],
+        values="STAR_AVAILABLE",
+        aggfunc="max"
+    ).reset_index()
+
+    player_availability_home = player_availability.rename(columns={
+        "TEAM_ID": "HOME_TEAM_ID",
+        "STAR_AVAILABLE": "HOME_STAR_AVAILABLE"
+    })
+    player_availability_away = player_availability.rename(columns={
+        "TEAM_ID": "AWAY_TEAM_ID",
+        "STAR_AVAILABLE": "AWAY_STAR_AVAILABLE"
+    })
+
+    games_df = pd.merge(
+        games_df,
+        player_availability_home[["GAME_ID", "HOME_TEAM_ID", "HOME_STAR_AVAILABLE"]],
+        on=["GAME_ID", "HOME_TEAM_ID"],
+        how="left"
+    )
+
+    games_df = pd.merge(
+        games_df,
+        player_availability_away[["GAME_ID", "AWAY_TEAM_ID", "AWAY_STAR_AVAILABLE"]],
+        on=["GAME_ID", "AWAY_TEAM_ID"],
+        how="left"
+    )
+
+    games_df["home_star_available"] = games_df["HOME_STAR_AVAILABLE"].fillna(3).astype(int)
+    games_df["away_star_available"] = games_df["AWAY_STAR_AVAILABLE"].fillna(3).astype(int)
+
+    return games_df
+
 def validate_games_dataset(games_df):
     if games_df.empty:
         raise ValueError("Processed dataset is empty.")
@@ -519,7 +568,9 @@ def validate_games_dataset(games_df):
         "home_off_vs_away_def",
         "away_off_vs_home_def",
         "offensive_defensive_matchup_diff",
-        "off_def_matchup_diff"
+        "off_def_matchup_diff",
+        "home_star_available",
+        "away_star_available"
     ]
 
     missing = [col for col in required_columns if col not in games_df.columns]
@@ -536,6 +587,9 @@ def main():
 
     print("Loading raw data...")
     raw_df = load_raw_data()
+
+    print("Loading player data...")
+    player_df = load_player_data()
 
     print("Building one-row-per-game dataset...")
     games_df = build_game_level_dataset(raw_df)
@@ -557,6 +611,9 @@ def main():
 
     print("Adding net rating and turnover rate features...")
     games_df = add_net_rating_and_turnover_features(games_df)
+
+    print("Adding star availability...")
+    games_df = add_star_availability(games_df, player_df)
 
     print("Validating processed dataset...")
     validate_games_dataset(games_df)
