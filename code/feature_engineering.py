@@ -68,7 +68,7 @@ def load_player_data():
 
     df = pd.read_csv(RAW_PLAYER_INPUT_FILE)
     df["STAR_AVAILABLE"] = pd.to_numeric(df["STAR_AVAILABLE"], errors="coerce")
-
+    df = df[df["STAR_AVAILABLE"] != 3]
     return df
 
 
@@ -524,8 +524,8 @@ def add_star_availability(games_df, player_df):
         how="left"
     )
 
-    games_df["home_star_available"] = games_df["HOME_STAR_AVAILABLE"].fillna(3).astype(int)
-    games_df["away_star_available"] = games_df["AWAY_STAR_AVAILABLE"].fillna(3).astype(int)
+    games_df["home_star_available"] = games_df["HOME_STAR_AVAILABLE"].fillna(0).astype(int)
+    games_df["away_star_available"] = games_df["AWAY_STAR_AVAILABLE"].fillna(0).astype(int)
 
     return games_df
 
@@ -569,8 +569,6 @@ def validate_games_dataset(games_df):
         "away_off_vs_home_def",
         "offensive_defensive_matchup_diff",
         "off_def_matchup_diff",
-        "home_star_available",
-        "away_star_available"
     ]
 
     missing = [col for col in required_columns if col not in games_df.columns]
