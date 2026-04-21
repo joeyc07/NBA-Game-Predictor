@@ -27,7 +27,7 @@ FEATURE_COLUMNS = [
     "net_rating_diff",
     "home_turnover_rate",
     "away_turnover_rate",
-    "turnover_rate_diff"
+    "turnover_rate_diff",
 ]
 
 MATCHUP_FEATURE_ALIASES = [
@@ -38,6 +38,8 @@ MATCHUP_FEATURE_ALIASES = [
 OPTIONAL_FEATURE_COLUMNS = [
     "home_last10_efg",
     "away_last10_efg",
+    "home_star_available",
+    "away_star_available"
 ]
 
 OPTIONAL_EFG_DIFF_ALIASES = [
@@ -132,10 +134,11 @@ def main():
         "MLP Classifier": Pipeline([
             ("scaler", StandardScaler()),
             ("model", MLPClassifier(
-                hidden_layer_sizes=(64, 32),
+                hidden_layer_sizes=(48, 24),
                 activation="relu",
                 solver="adam",
-                alpha=0.001,
+                alpha=0.01,
+                early_stopping=True,
                 batch_size=32,
                 learning_rate_init=0.001,
                 max_iter=500,
