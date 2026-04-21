@@ -126,8 +126,8 @@ def main():
         ]),
         "Random Forest": RandomForestClassifier(
             n_estimators=300,
-            max_depth=10,
-            min_samples_split=10,
+            max_depth=5,
+            min_samples_split=5,
             min_samples_leaf=4,
             random_state=42
         ),
