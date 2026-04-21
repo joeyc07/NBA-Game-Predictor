@@ -64,6 +64,8 @@ MATCHUP_FEATURE_ALIASES = [
 OPTIONAL_FEATURE_COLUMNS = [
     "home_last10_efg",
     "away_last10_efg",
+    #"home_star_available",
+    #"away_star_available",
 ]
 
 OPTIONAL_EFG_DIFF_ALIASES = [

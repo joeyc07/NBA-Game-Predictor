@@ -49,7 +49,7 @@ def get_top_players_by_season():
 
             top_players[(season, team_id)] = top2
 
-        time.sleep(1.5)
+        time.sleep(1.7)
 
     return top_players
 
@@ -77,7 +77,7 @@ def build_star_availability():
                 ).get_data_frames()[0]
 
                 game_cache[game_id] = box
-                time.sleep(1.5)
+                time.sleep(1.7)
 
             except Exception as e:
                 print(f"Error on game {game_id}: {e}")
