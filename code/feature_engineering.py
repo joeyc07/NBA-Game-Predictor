@@ -80,6 +80,7 @@ def build_game_level_dataset(team_games_df):
 
 
 def add_last10_features(games_df):
+    # Rolling features use only games already seen before the current row to avoid target leakage.
     games_df = games_df.copy()
     games_df = games_df.sort_values(["GAME_DATE", "GAME_ID"]).reset_index(drop=True)
 

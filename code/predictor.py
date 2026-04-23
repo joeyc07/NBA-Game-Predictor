@@ -66,6 +66,7 @@ class NBAPredictorService:
         return games_df
 
     def get_prediction_dataset(self):
+        # Prefer current NBA API data; fall back to the processed local dataset if live data is unavailable.
         if self.live_feature_df is not None:
             return self.live_feature_df
 
@@ -137,6 +138,7 @@ class NBAPredictorService:
         return snapshot
 
     def build_prediction_input(self, home_team, away_team):
+        # Build an upcoming matchup row from each team's latest available form and location-specific stats.
         source_df = self.get_prediction_dataset()
 
         latest_home_team_row = self.get_latest_team_row(source_df, home_team)
