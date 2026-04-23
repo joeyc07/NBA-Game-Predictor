@@ -1,4 +1,3 @@
-import os
 import pandas as pd
 from sklearn.linear_model import LogisticRegression
 from sklearn.ensemble import RandomForestClassifier
@@ -7,80 +6,19 @@ from sklearn.metrics import accuracy_score, classification_report, confusion_mat
 from sklearn.preprocessing import StandardScaler
 from sklearn.pipeline import Pipeline
 
-
-DATA_FILE = "../data/processed/games_with_features.csv"
-
-FEATURE_COLUMNS = [
-    "home_last10_win_pct",
-    "away_last10_win_pct",
-    "last10_win_pct_diff",
-    "home_last10_home_win_pct",
-    "away_last10_away_win_pct",
-    "home_away_form_diff",
-    "home_rest_days",
-    "away_rest_days",
-    "rest_diff",
-    "home_off_vs_away_def",
-    "away_off_vs_home_def",
-    "home_net_rating",
-    "away_net_rating",
-    "net_rating_diff",
-    "home_turnover_rate",
-    "away_turnover_rate",
-    "turnover_rate_diff"
-]
-
-MATCHUP_FEATURE_ALIASES = [
-    "offensive_defensive_matchup_diff",
-    "off_def_matchup_diff",
-]
-
-OPTIONAL_FEATURE_COLUMNS = [
-    "home_last10_efg",
-    "away_last10_efg",
-]
-
-OPTIONAL_EFG_DIFF_ALIASES = [
-    "effective_fg_pct_diff",
-    "efg_diff",
-]
+from config import PROCESSED_GAMES_FILE
+from model_utils import get_feature_columns, load_processed_games, split_features_and_target
 
 
 def load_data():
-    if not os.path.exists(DATA_FILE):
+    if not PROCESSED_GAMES_FILE.exists():
         raise FileNotFoundError(
-            f"Could not find {DATA_FILE}. Run feature_engineering.py first."
+            f"Could not find {PROCESSED_GAMES_FILE}. Run feature_engineering.py first."
         )
 
-    df = pd.read_csv(DATA_FILE)
-    df["GAME_DATE"] = pd.to_datetime(df["GAME_DATE"], errors="coerce")
-
-    feature_columns = FEATURE_COLUMNS.copy()
-
-    for col in MATCHUP_FEATURE_ALIASES:
-        if col in df.columns:
-            feature_columns.append(col)
-            break
-
-    for col in OPTIONAL_FEATURE_COLUMNS:
-        if col in df.columns:
-            feature_columns.append(col)
-
-    for col in OPTIONAL_EFG_DIFF_ALIASES:
-        if col in df.columns:
-            feature_columns.append(col)
-            break
-
-    X = df[feature_columns]
-    y = df["HOME_TEAM_WINS"]
-
-    split_index = int(len(df) * 0.8)
-
-    X_train = X.iloc[:split_index]
-    X_test = X.iloc[split_index:]
-    y_train = y.iloc[:split_index]
-    y_test = y.iloc[split_index:]
-
+    df = load_processed_games(PROCESSED_GAMES_FILE)
+    feature_columns = get_feature_columns(df)
+    X_train, X_test, y_train, y_test = split_features_and_target(df, feature_columns)
     return X_train, X_test, y_train, y_test, feature_columns
 
 

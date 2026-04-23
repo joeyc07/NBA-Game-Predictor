@@ -1,1 +1,23 @@
-/code/__pycache__/
+# Python bytecode/cache
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Virtual environments
+.venv/
+venv/
+env/
+
+# Local environment/config
+.env
+.env.*
+
+# Test/type-check caches
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Build/package outputs
+build/
+dist/
+*.egg-info/
