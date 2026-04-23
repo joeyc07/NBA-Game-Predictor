@@ -3,61 +3,21 @@ from collections import defaultdict, deque
 
 import pandas as pd
 
-
-RAW_INPUT_FILE = "../data/raw/nba_team_games_combined.csv"
-PROCESSED_OUTPUT_FILE = "../data/processed/games_with_features.csv"
-
-NBA_TEAMS = [
-    "Atlanta Hawks", "Boston Celtics", "Brooklyn Nets", "Charlotte Hornets",
-    "Chicago Bulls", "Cleveland Cavaliers", "Dallas Mavericks", "Denver Nuggets",
-    "Detroit Pistons", "Golden State Warriors", "Houston Rockets", "Indiana Pacers",
-    "Los Angeles Clippers", "Los Angeles Lakers", "Memphis Grizzlies", "Miami Heat",
-    "Milwaukee Bucks", "Minnesota Timberwolves", "New Orleans Pelicans", "New York Knicks",
-    "Oklahoma City Thunder", "Orlando Magic", "Philadelphia 76ers", "Phoenix Suns",
-    "Portland Trail Blazers", "Sacramento Kings", "San Antonio Spurs", "Toronto Raptors",
-    "Utah Jazz", "Washington Wizards"
-]
+from config import PROCESSED_GAMES_FILE, RAW_GAMES_FILE
+from data_utils import clean_team_games, clean_team_name
 
 
 def ensure_directories():
-    os.makedirs(os.path.dirname(PROCESSED_OUTPUT_FILE), exist_ok=True)
-
-
-def clean_team_name(name):
-    name = str(name).strip()
-    replacements = {
-        "Los Angeles Clippers": "Los Angeles Clippers",
-        "LA Clippers": "Los Angeles Clippers",
-        "L.A. Clippers": "Los Angeles Clippers"
-    }
-    return replacements.get(name, name)
+    os.makedirs(PROCESSED_GAMES_FILE.parent, exist_ok=True)
 
 
 def load_raw_data():
-    if not os.path.exists(RAW_INPUT_FILE):
+    if not RAW_GAMES_FILE.exists():
         raise FileNotFoundError(
-            f"Could not find {RAW_INPUT_FILE}. Run nba_api_data_collection.py first."
+            f"Could not find {RAW_GAMES_FILE}. Run nba_api_data_collection.py first."
         )
 
-    df = pd.read_csv(RAW_INPUT_FILE)
-    df["GAME_DATE"] = pd.to_datetime(df["GAME_DATE"], errors="coerce")
-    df["TEAM_NAME"] = df["TEAM_NAME"].apply(clean_team_name)
-    df["MATCHUP"] = df["MATCHUP"].astype(str).str.strip()
-    df["WL"] = df["WL"].astype(str).str.strip()
-
-    numeric_candidates = [
-        "PTS", "FGM", "FGA", "FG3M", "FG3A", "FTM", "FTA",
-        "OREB", "DREB", "REB", "AST", "STL", "BLK", "TOV", "PF", "PLUS_MINUS"
-    ]
-    for col in numeric_candidates:
-        if col in df.columns:
-            df[col] = pd.to_numeric(df[col], errors="coerce")
-
-    df = df[df["TEAM_NAME"].isin(NBA_TEAMS)].copy()
-    df = df.dropna(subset=["GAME_ID", "GAME_DATE", "TEAM_ID", "TEAM_NAME", "MATCHUP", "WL", "PTS", "SEASON"])
-    df = df.sort_values(["GAME_DATE", "GAME_ID", "TEAM_NAME"]).reset_index(drop=True)
-
-    return df
+    return clean_team_games(pd.read_csv(RAW_GAMES_FILE))
 
 
 def build_game_level_dataset(team_games_df):
@@ -561,8 +521,8 @@ def main():
     print("Validating processed dataset...")
     validate_games_dataset(games_df)
 
-    games_df.to_csv(PROCESSED_OUTPUT_FILE, index=False)
-    print(f"Saved processed data to {PROCESSED_OUTPUT_FILE}")
+    games_df.to_csv(PROCESSED_GAMES_FILE, index=False)
+    print(f"Saved processed data to {PROCESSED_GAMES_FILE}")
 
     print("\nProcessed dataset preview:")
     print(games_df.head())

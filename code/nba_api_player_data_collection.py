@@ -6,18 +6,15 @@ from nba_api.stats.endpoints import (
     boxscoretraditionalv3
 )
 
-SEASONS = ["2022-23", "2023-24", "2024-25"]
-
-RAW_CACHE_DIR = "../data/raw/nba_api_games_cache"
-RAW_OUTPUT_FILE = "../data/raw/nba_player_games_combined.csv"
+from config import PLAYER_GAMES_CACHE_DIR, PLAYER_GAMES_FILE, RAW_GAMES_FILE, SEASONS
 
 
 def ensure_directories():
-    os.makedirs(RAW_CACHE_DIR, exist_ok=True)
-    os.makedirs(os.path.dirname(RAW_OUTPUT_FILE), exist_ok=True)
+    os.makedirs(PLAYER_GAMES_CACHE_DIR, exist_ok=True)
+    os.makedirs(PLAYER_GAMES_FILE.parent, exist_ok=True)
 
 def load_games():
-    df = pd.read_csv("../data/raw/nba_team_games_combined.csv")
+    df = pd.read_csv(RAW_GAMES_FILE)
     df = df.dropna(subset=["GAME_ID", "TEAM_ID", "SEASON"])
     return df[["GAME_ID", "TEAM_ID", "SEASON"]].drop_duplicates()
 
@@ -106,8 +103,8 @@ def main():
 
     df = build_star_availability()
 
-    df.to_csv(RAW_OUTPUT_FILE, index=False)
-    print(f"Saved star availability to {RAW_OUTPUT_FILE}")
+    df.to_csv(PLAYER_GAMES_FILE, index=False)
+    print(f"Saved star availability to {PLAYER_GAMES_FILE}")
 
     print("\nPreview:")
     print(df.head())
