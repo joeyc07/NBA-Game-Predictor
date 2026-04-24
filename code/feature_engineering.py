@@ -521,8 +521,8 @@ def main():
     print("Validating processed dataset...")
     validate_games_dataset(games_df)
 
-    games_df.to_csv(PROCESSED_OUTPUT_FILE, index=False)
-    print(f"Saved processed data to {PROCESSED_OUTPUT_FILE}")
+    games_df.to_csv(PROCESSED_GAMES_FILE, index=False)
+    print(f"Saved processed data to {PROCESSED_GAMES_FILE}")
 
     print("\nProcessed dataset preview:")
     print(games_df.head())
@@ -552,7 +552,9 @@ def main():
         "home_off_vs_away_def",
         "away_off_vs_home_def",
         "offensive_defensive_matchup_diff",
-        "off_def_matchup_diff"
+        "off_def_matchup_diff",
+        "home_star_available",
+        "away_star_available",
     ]
     if "effective_fg_pct_diff" in games_df.columns:
         sample_cols.extend([

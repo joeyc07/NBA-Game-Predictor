@@ -48,6 +48,8 @@ BASE_FEATURE_COLUMNS = [
     "home_turnover_rate",
     "away_turnover_rate",
     "turnover_rate_diff",
+    "home_star_available",
+    "away_star_available",
 ]
 
 MATCHUP_FEATURE_ALIASES = [
