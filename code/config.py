@@ -8,6 +8,7 @@ PROCESSED_DATA_DIR = DATA_DIR / "processed"
 
 RAW_CACHE_DIR = RAW_DATA_DIR / "nba_api_cache"
 RAW_GAMES_FILE = RAW_DATA_DIR / "nba_team_games_combined.csv"
+RAW_PLAYER_FILE = RAW_DATA_DIR / "nba_player_games_combined.csv"
 PLAYER_GAMES_CACHE_DIR = RAW_DATA_DIR / "nba_api_games_cache"
 PLAYER_GAMES_FILE = RAW_DATA_DIR / "nba_player_games_combined.csv"
 PROCESSED_GAMES_FILE = PROCESSED_DATA_DIR / "games_with_features.csv"

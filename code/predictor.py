@@ -28,6 +28,8 @@ class NBAPredictorService:
         self.live_data_status = "Local processed dataset"
         self.live_season = self.get_default_live_season()
         self.feature_columns = get_feature_columns(self.df)
+        self.feature_columns.remove("home_star_available")
+        self.feature_columns.remove("away_star_available")
         self.model = train_home_win_model(self.df, self.feature_columns)
 
     def get_default_live_season(self):
