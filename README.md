@@ -11,7 +11,8 @@ NBA Game Predictor is a Python machine learning project that predicts whether th
 - Joseph
 - Lexi Sung
 - Justin
-##Link for Web Version
+
+## Link for Web Version
 
 https://nba-outcome-predictor.vercel.app/
 
